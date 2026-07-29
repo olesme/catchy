@@ -1,0 +1,64 @@
+
+<Solution>
+  <Folder Name="/docs/">
+    <File Path="docs/readme.md" />
+    <File Path="docs/USAGE_GUIDE.md" />
+    <File Path="docs/ARCHITECTURE.md" />
+    <File Path="docs/SourceGenerator_Architecture.md" />
+    <File Path="docs/extensibility-guide.md" />
+    <File Path="docs/integration-extension-tutorial.md" />
+    <File Path="docs/integration-catalog.md" />
+    <File Path="docs/quality-gates.md" />
+    <File Path="docs/repository-structure.md" />
+    <File Path="docs/agentic-observability.md" />
+    <File Path="docs/versioning-policy.md" />
+    <File Path="docs/ai-instructions-policy.md" />
+    <File Path="docs/sonarlint-adoption.md" />
+    <File Path="samples/README.md" />
+  </Folder>
+  <Folder Name="/samples/">
+    <Project Path="samples/ExtensibilityMatrixDemo/ExtensibilityMatrixDemo.csproj" />
+    <Project Path="samples/PlaywrightAbstractionsDemo/PlaywrightAbstractionsDemo.csproj" />
+    <Project Path="samples/RunnerMSTestDemo/RunnerMSTestDemo.csproj" />
+    <Project Path="samples/RunnerNUnitDemo/RunnerNUnitDemo.csproj" />
+    <Project Path="samples/RunnerReqnrollDemo/RunnerReqnrollDemo.csproj" />
+    <Project Path="samples/RunnerTUnitDemo/RunnerTUnitDemo.csproj" />
+    <Project Path="samples/RunnerXUnitDemo/RunnerXUnitDemo.csproj" />
+    <Project Path="samples/StatefulHooksAndFlushDemo/StatefulHooksAndFlushDemo.csproj" />
+  </Folder>
+  <Folder Name="/src/">
+    <Project Path="src/Catchy.Analyzers/Catchy.Analyzers.csproj" />
+    <Project Path="src/Catchy.Cecil/Catchy.Cecil.csproj" />
+    <Project Path="src/Catchy.MSTest/Catchy.MSTest.csproj" />
+    <Project Path="src/Catchy.NUnit/Catchy.NUnit.csproj" />
+    <Project Path="src/Catchy.Playwright.Visual/Catchy.Playwright.Visual.csproj" />
+    <Project Path="src/Catchy.Playwright/Catchy.Playwright.csproj" />
+    <Project Path="src/Catchy.Reqnroll/Catchy.ReqnrollPlugin.csproj" />
+    <Project Path="src/Catchy.SourceGenerator/Catchy.SourceGenerator.csproj" />
+    <Project Path="src/Catchy.TUnit/Catchy.TUnit.csproj" />
+    <Project Path="src/Catchy.XUnit/Catchy.XUnit.csproj" />
+    <Project Path="src/Catchy/Catchy.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/CatchyCecilTests/CatchyCecilTests.csproj" />
+    <Project Path="tests/CatchyCoreTests/CatchyCoreTests.csproj" />
+    <Project Path="tests/CatchyPlaywrightTests/CatchyPlaywrightTests.csproj" />
+    <Project Path="tests/CatchySourceGenTests/CatchySourceGenTests.csproj" />
+    <Project Path="tests/CatchyTestHelpers/CatchyTestHelpers.csproj" Id="4780ec0d-3e09-4c57-92c4-138eefe8e69b" />
+    <Project Path="tests/NuGetPackageSmoke/NuGetPackageSmoke.csproj" />
+  </Folder>
+  <Folder Name="/tests/Ambient/">
+    <Project Path="tests/Ambient/AmbientMSTestTests/AmbientMSTestTests.csproj" />
+    <Project Path="tests/Ambient/AmbientNUnitTests/AmbientNUnitTests.csproj" />
+    <Project Path="tests/Ambient/AmbientReqnrollTests/AmbientReqnrollTests.csproj" />
+    <Project Path="tests/Ambient/AmbientTUnitTests/AmbientTUnitTests.csproj" />
+    <Project Path="tests/Ambient/AmbientXUnitTests/AmbientXUnitTests.csproj" />
+  </Folder>
+  <Folder Name="/tests/XFAIL_Ambient/">
+    <Project Path="tests/XFAIL_Ambient/XFAIL_AmbientMSTestTests/XFAIL_AmbientMSTestTests.csproj" />
+    <Project Path="tests/XFAIL_Ambient/XFAIL_AmbientNUnitTests/XFAIL_AmbientNUnitTests.csproj" />
+    <Project Path="tests/XFAIL_Ambient/XFAIL_AmbientReqnrollTests/XFAIL_AmbientReqnrollTests.csproj" />
+    <Project Path="tests/XFAIL_Ambient/XFAIL_AmbientTUnitTests/XFAIL_AmbientTUnitTests.csproj" />
+    <Project Path="tests/XFAIL_Ambient/XFAIL_AmbientXUnitTests/XFAIL_AmbientXUnitTests.csproj" />
+  </Folder>
+</Solution>

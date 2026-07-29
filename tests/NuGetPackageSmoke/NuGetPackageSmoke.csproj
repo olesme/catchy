@@ -1,0 +1,19 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+	<OutputType>Exe</OutputType>
+	<TargetFramework>net8.0</TargetFramework>
+	<LangVersion>14</LangVersion>
+	<Nullable>enable</Nullable>
+	<ImplicitUsings>enable</ImplicitUsings>
+  </PropertyGroup>
+
+  <!-- Versions come from $(CatchyPackageVersion) in the root Directory.Build.props, which also drives
+       <Version> for the src/ packages. Both sides must agree or restore from the local feed fails. -->
+  <ItemGroup>
+	<PackageReference Include="Catchy" Version="$(CatchyPackageVersion)" />
+	<PackageReference Include="Catchy.SourceGenerator" Version="$(CatchyPackageVersion)" PrivateAssets="all" />
+	<PackageReference Include="Catchy.Cecil" Version="$(CatchyPackageVersion)" />
+	<PackageReference Include="Catchy.Playwright" Version="$(CatchyPackageVersion)" />
+	<PackageReference Include="Catchy.Playwright.Visual" Version="$(CatchyPackageVersion)" />
+  </ItemGroup>
+</Project>

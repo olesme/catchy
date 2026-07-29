@@ -1,0 +1,99 @@
+name: Integration Package Proposal
+description: Propose a new Catchy integration package (for example Selenium, PuppeteerSharp, RestSharp).
+title: "integration: Catchy.<name>"
+labels:
+  - integration
+  - proposal
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Use this template to propose a new integration package.
+        Keep scope small and align with docs/integration-extension-tutorial.md and docs/quality-gates.md.
+
+  - type: input
+    id: package_name
+    attributes:
+      label: Package name
+      description: Proposed package id (for example Catchy.Selenium)
+      placeholder: Catchy.<IntegrationName>
+    validations:
+      required: true
+
+  - type: textarea
+    id: motivation
+    attributes:
+      label: Motivation
+      description: Why this integration is needed and what testing scenarios it unlocks.
+      placeholder: Main use-cases and expected user value.
+    validations:
+      required: true
+
+  - type: textarea
+    id: initial_scope
+    attributes:
+      label: Initial scope (v1)
+      description: List minimal assertion surface for first release.
+      placeholder: |
+        - Assertion target types
+        - Core assertion methods
+        - Out-of-scope items
+    validations:
+      required: true
+
+  - type: textarea
+    id: api_surface
+    attributes:
+      label: API sketch
+      description: Example fluent API calls intended for this package.
+      placeholder: |
+        await Assert.That(target).Has...
+        await Assert.That(target).Is...
+    validations:
+      required: true
+
+  - type: textarea
+    id: packaging_model
+    attributes:
+      label: Packaging and generator model
+      description: Confirm package behavior follows Catchy package delivery model.
+      placeholder: |
+        - Package internals precompiled
+        - Consumer generation via package-delivered analyzer assets
+        - NuGet smoke validation plan
+    validations:
+      required: true
+
+  - type: textarea
+    id: quality_gates
+    attributes:
+      label: Quality gates checklist
+      description: Link/confirm quality gates from docs/quality-gates.md.
+      placeholder: |
+        - [ ] Build + tests
+        - [ ] Pack validation
+        - [ ] NuGet smoke consumption
+        - [ ] Canonical docs updated
+    validations:
+      required: true
+
+  - type: textarea
+    id: test_strategy
+    attributes:
+      label: Test strategy
+      description: Which tests will be added and where.
+      placeholder: |
+        - Unit/integration tests
+        - Negative-path tests
+        - Chain/modifier behavior
+    validations:
+      required: true
+
+  - type: textarea
+    id: definition_of_done
+    attributes:
+      label: Definition of Done
+      description: Explicit completion criteria for this integration package.
+      placeholder: Match docs/integration-extension-tutorial.md DoD and package release gates.
+    validations:
+      required: true

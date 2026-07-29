@@ -1,0 +1,36 @@
+<Project>
+  <!-- Single source of truth for the version of packages produced from src/ and consumed by
+       tests/NuGetPackageSmoke. Override on the command line to pack and smoke-test a real version:
+       dotnet pack ... -p:CatchyPackageVersion=1.2.3  /  dotnet build ... -p:CatchyPackageVersion=1.2.3 -->
+  <PropertyGroup>
+	<CatchyPackageVersion Condition="'$(CatchyPackageVersion)' == ''">0.0.0</CatchyPackageVersion>
+  </PropertyGroup>
+
+  <PropertyGroup Condition="($([System.String]::Copy('$(MSBuildProjectDirectory)').Contains('\src\')) or $([System.String]::Copy('$(MSBuildProjectDirectory)').Contains('/src/'))) and '$(IsPackable)' != 'false'">
+	<Version>$(CatchyPackageVersion)</Version>
+	<Authors>Oles Menzer (Oleksandr Menzerov)</Authors>
+	<Copyright>Copyright (c) 2026 Oles Menzer (Oleksandr Menzerov)</Copyright>
+	<PackageTags>assertions;testing;fluent;async;dotnet</PackageTags>
+	<PackageIcon>icon.png</PackageIcon>
+	<PackageLicenseExpression>MIT</PackageLicenseExpression>
+	<RepositoryUrl>https://github.com/olesme/catchy</RepositoryUrl>
+	<PackageProjectUrl>https://github.com/olesme/catchy</PackageProjectUrl>
+	<RepositoryType>git</RepositoryType>
+	<PublishRepositoryUrl>true</PublishRepositoryUrl>
+	<IncludeSymbols>true</IncludeSymbols>
+	<SymbolPackageFormat>snupkg</SymbolPackageFormat>
+	<EmbedUntrackedSources>true</EmbedUntrackedSources>
+	<Deterministic>true</Deterministic>
+	<DebugType>portable</DebugType>
+  </PropertyGroup>
+
+  <PropertyGroup Condition="($([System.String]::Copy('$(MSBuildProjectDirectory)').Contains('\src\')) or $([System.String]::Copy('$(MSBuildProjectDirectory)').Contains('/src/'))) and '$(IsPackable)' != 'false' and '$(GITHUB_ACTIONS)' == 'true'">
+	<ContinuousIntegrationBuild>true</ContinuousIntegrationBuild>
+  </PropertyGroup>
+
+  <ItemGroup Condition="($([System.String]::Copy('$(MSBuildProjectDirectory)').Contains('\src\')) or $([System.String]::Copy('$(MSBuildProjectDirectory)').Contains('/src/'))) and '$(IsPackable)' != 'false'">
+	<None Include="$(MSBuildThisFileDirectory)LICENSE" Pack="true" PackagePath="\" Link="LICENSE" Visible="false" />
+	<None Include="$(MSBuildThisFileDirectory)assets\icon.png" Pack="true" PackagePath="\" Link="icon.png" Visible="false" />
+	<PackageReference Include="Microsoft.SourceLink.GitHub" Version="8.0.0" PrivateAssets="All" />
+  </ItemGroup>
+</Project>

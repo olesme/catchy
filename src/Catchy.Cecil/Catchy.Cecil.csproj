@@ -1,0 +1,23 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFrameworks>netstandard2.0;net5.0;net6.0;net7.0;net8.0;net9.0</TargetFrameworks>
+    <LangVersion>14</LangVersion>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <AllowUnsafeBlocks>false</AllowUnsafeBlocks>
+    <AssemblyName>Catchy.Cecil</AssemblyName>
+    <RootNamespace>Catchy</RootNamespace>
+    <Description>Catchy integration helpers for Mono.Cecil-based inspection and validation scenarios.</Description>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="Mono.Cecil" Version="0.11.6" />
+  </ItemGroup>
+	<ItemGroup>
+		<ProjectReference Include="..\Catchy\Catchy.csproj" />
+	</ItemGroup>
+
+  <ItemGroup>
+	<None Include="README.md" Pack="true" PackagePath="\" />
+  </ItemGroup>
+</Project>

@@ -1,0 +1,108 @@
+name: Publish to NuGet
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Package version (e.g. 0.1.0-preview.1)'
+        required: true
+
+jobs:
+  publish:
+    runs-on: windows-latest
+    permissions:
+      id-token: write  # required for Trusted Publishing OIDC
+      contents: read
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Setup .NET SDK
+        uses: actions/setup-dotnet@v6
+        with:
+          global-json-file: global.json
+
+      - name: Resolve version
+        id: version
+        shell: pwsh
+        run: |
+          if ('${{ github.event_name }}' -eq 'release') {
+            $v = '${{ github.event.release.tag_name }}' -replace '^v',''
+          } else {
+            $v = '${{ inputs.version }}'
+          }
+          Write-Output "version=$v" >> $env:GITHUB_OUTPUT
+          Write-Host "Publishing version: $v"
+
+      - name: Pack local feed (NuGetPackageSmoke dependencies)
+        shell: pwsh
+        run: |
+          $ver = '${{ steps.version.outputs.version }}'
+          New-Item -ItemType Directory -Path artifacts/local-feed -Force | Out-Null
+          @(
+            'src/Catchy.SourceGenerator/Catchy.SourceGenerator.csproj',
+            'src/Catchy/Catchy.csproj',
+            'src/Catchy.Cecil/Catchy.Cecil.csproj',
+            'src/Catchy.Playwright/Catchy.Playwright.csproj',
+            'src/Catchy.Playwright.Visual/Catchy.Playwright.Visual.csproj'
+          ) | ForEach-Object { dotnet pack $_ -o artifacts/local-feed -p:CatchyPackageVersion=$ver }
+
+      - name: Restore
+        run: dotnet restore CatchyAssertions.slnx -p:RestoreAdditionalProjectSources="${{ github.workspace }}/artifacts/local-feed" -p:CatchyPackageVersion=${{ steps.version.outputs.version }}
+
+      - name: Build
+        run: dotnet build CatchyAssertions.slnx -c Release --no-restore -m:1 -p:CatchyPackageVersion=${{ steps.version.outputs.version }}
+
+      - name: Test (gate)
+        run: |
+          dotnet test tests/CatchyCoreTests/CatchyCoreTests.csproj       -c Release --no-build
+          dotnet test tests/CatchySourceGenTests/CatchySourceGenTests.csproj -c Release --no-build
+
+      - name: Pack
+        shell: pwsh
+        run: |
+          $ver = '${{ steps.version.outputs.version }}'
+          $out = 'artifacts/publish'
+          New-Item -ItemType Directory -Path $out -Force | Out-Null
+          @(
+            'src/Catchy/Catchy.csproj',
+            'src/Catchy.SourceGenerator/Catchy.SourceGenerator.csproj',
+            'src/Catchy.Analyzers/Catchy.Analyzers.csproj',
+            'src/Catchy.Cecil/Catchy.Cecil.csproj',
+            'src/Catchy.Playwright/Catchy.Playwright.csproj',
+            'src/Catchy.Playwright.Visual/Catchy.Playwright.Visual.csproj',
+            'src/Catchy.XUnit/Catchy.XUnit.csproj',
+            'src/Catchy.NUnit/Catchy.NUnit.csproj',
+            'src/Catchy.MSTest/Catchy.MSTest.csproj',
+            'src/Catchy.TUnit/Catchy.TUnit.csproj',
+            'src/Catchy.Reqnroll/Catchy.ReqnrollPlugin.csproj'
+          ) | ForEach-Object { dotnet pack $_ -c Release --no-build -o $out -p:CatchyPackageVersion=$ver }
+
+      - name: NuGet smoke (local feed validation)
+        shell: pwsh
+        run: |
+          dotnet build tests/NuGetPackageSmoke/NuGetPackageSmoke.csproj -c Release -m:1 `
+            -p:RestoreAdditionalProjectSources="${{ github.workspace }}/artifacts/publish" `
+            -p:RestoreNoCache=true `
+            -p:CatchyPackageVersion=${{ steps.version.outputs.version }}
+
+      - name: NuGet login (Trusted Publishing — OIDC → temp API key)
+        uses: NuGet/login@v1
+        id: nuget-login
+        with:
+          user: OlesMe
+
+      - name: Push to NuGet.org
+        shell: pwsh
+        run: |
+          $pkgs = Get-ChildItem 'artifacts/publish/*.nupkg' | Where-Object { $_.Name -notmatch '\.symbols\.' }
+          $syms = Get-ChildItem 'artifacts/publish/*.snupkg'
+          ($pkgs + $syms) | ForEach-Object {
+            dotnet nuget push $_.FullName `
+              --api-key ${{ steps.nuget-login.outputs.NUGET_API_KEY }} `
+              --source https://api.nuget.org/v3/index.json `
+              --skip-duplicate
+          }

@@ -1,0 +1,69 @@
+name: Integration Bug / Regression
+description: Report a bug or regression in a Catchy integration package.
+title: "integration bug: Catchy.<name> - <short description>"
+labels:
+  - integration
+  - bug
+body:
+  - type: input
+    id: package_name
+    attributes:
+      label: Package
+      description: Affected package id
+      placeholder: Catchy.<IntegrationName>
+    validations:
+      required: true
+
+  - type: input
+    id: version
+    attributes:
+      label: Version / commit
+      description: Package version or commit hash where issue occurs
+      placeholder: 1.0.0 / <commit>
+    validations:
+      required: true
+
+  - type: textarea
+    id: description
+    attributes:
+      label: Problem description
+      description: What is wrong and expected behavior.
+    validations:
+      required: true
+
+  - type: textarea
+    id: repro
+    attributes:
+      label: Reproduction steps
+      description: Minimal reproducible steps.
+      placeholder: |
+        1. Setup ...
+        2. Call ...
+        3. Observe ...
+    validations:
+      required: true
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs / errors
+      description: Build output, runtime errors, stack traces, or screenshots.
+
+  - type: textarea
+    id: impact
+    attributes:
+      label: Impact
+      description: Scope and severity (test blocking, incorrect pass/fail, packaging regression, etc.)
+    validations:
+      required: true
+
+  - type: textarea
+    id: quality_gate_regression
+    attributes:
+      label: Quality gate regression
+      description: Which quality gate appears broken (if known).
+      placeholder: |
+        - Build/test
+        - Packaging
+        - NuGet consumption
+        - Documentation

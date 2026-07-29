@@ -1,0 +1,142 @@
+# Copilot Instructions
+
+## Project Guidelines
+- Keep tests split by categories into separate classes/files.
+- Keep trailing modifiers lazy by design.
+- Use fluent trailing modifiers at the end of chains (e.g., `.IsOrdered().Ascending()`).
+- All assertion modifiers (for example WithComparison/Because/etc.) must be trailing at the end of the chain; do not place modifiers mid-chain.
+- In CatchyAssertions fluent chains, use lazy evaluation everywhere by design so end-of-chain modifiers can affect all operations based on final state.
+- Avoid ExpectedThrows and use CatchyTestHelpers.ShouldFailWithMessageAsync with message verification instead of ExpectedThrows attributes. For negative test scenarios, wrap expected failures with CatchyTestHelpers.ShouldFailWithMessageAsync and assert the error message content (exclusion only for auto flush in XFAIL ambient tests projects).
+- Avoid version-change/refactor workarounds unrelated to root cause.
+- Before any potentially destructive or structural changes in this repo, explain intended actions first and get explicit user confirmation; do not delete or replace test structure without agreement.
+- Focus primarily on real refactor/migration code changes, with documentation and tests as supporting work only.
+- Treat tests as quality gates: do not relax expected assertions to chase green runs; fix code/messages to preserve intended behavior.
+- Add backlog item for object matching rule registration from external classes/assemblies where attributes cannot be applied directly.
+- Keep bundle target subscription attributes colocated with That entrypoints for now.
+- Keep the collection entry point as the single generated IEnumerable-based `That(...)`; if span assertions remain, expose them explicitly (for example `ThatSpan`/`ThatReadOnlySpan`) instead of through conflicting generic `That(...)` overloads.
+- When alternative entry points are required instead of the standard `That(...)`, document them with comments explaining why they exist and why the normal `That` overload is not used.
+- Generated files (e.g., *.g.cs) should not be manually managed in source folders; generation must be automatic via source generator/build outputs (obj/), with runtime code and generator sources as the only edited inputs.
+- Do not keep or regenerate source files under src/Catchy/Assertions/Generated as manually managed artifacts; generation should be source-generator/build-output driven. Keep object-specific APIs (e.g., ThatHas, IsNull) bundle-gated and avoid broadening methods to all ValueAssertions when that causes magnetism conflicts. Continue removing concrete wrappers like DateOnlyValueAssertions and TypeCollectionAssertions toward bundle-driven ValueAssertions surfaces.
+- Implement generation universally via attributes/metadata in Catchy.SourceGenerator only; do not hardcode logic for specific user/test types. Tests must validate generic generator behavior.
+- Perform conflict/pollution checks rather than preserving wrappers for historical reasons; remove historical concrete assertion wrapper types unless a proven technical conflict exists.
+- Review every failing test carefully after refactors; assume regressions are more likely than test bugs and validate each failure before fixing.
+- Continue aggressive deduplication and use source-generator-based deduplication where it is justified, while keeping assertion methods thin and delegating complex logic to checks.
+- Move only complex or genuinely repetitive logic into check classes; do not replace very short assertion inline checks with check calls when it increases verbosity without architectural benefit.
+- If test helpers are useful across multiple test projects/integrations, place them in tests/CatchyTestHelpers instead of project-specific test folders.
+- Do not adjust tests to pass by using fallback ObjectAssertions paths; generator tests must verify that methods/transitions are actually generated and used.
+- Do not keep legacy/backward-compatibility shims during active development; prefer clean canonical architecture and remove compatibility overloads/workarounds.
+- Do not keep legacy/backward-compatibility scaffolding while the library is still in active development; prefer clean canonical architecture without redundant attributes or APIs.
+- Integer-specific assertions must not be treated as generic IComparable features; complex assertion logic should stay in the Checks layer with thin assertion extensions.
+- Never expose broad generic assertion extensions unless valid for the full constrained domain; avoid API pollution by using explicit concrete-type extensions or explicit-target bundle templates when duplication exists.
+- Reusable assertion/runtime helpers that are useful for extension authors should be public in the SDK namespace; internal accessors are acceptable only for core-library-only details that are not needed when writing extensions. The library is still under development, so favor the cleanest architecture over compatibility concerns for nonexistent consumers.
+- When doing architectural refactors in this repo, always validate with build and relevant tests to ensure no breakage, API conflicts, or unintended API surface leaks.
+- Do not revert the workspace for minor edit mistakes; fix small batch-edit errors in place instead, because the user wants manual patchable errors corrected without wasting time or tokens.
+- User requires architectural decisions to be pre-aligned with stated repo rules: bundle methods are subscriber-driven only, typed templates use explicit target lists, and direct extensions are only type-specific; do not proceed with unilateral architecture changes.
+- When reporting completed changes, provide direct verification from current file contents (not only summaries) to avoid mismatch between claims and workspace state.
+- Tests must validate real user-facing API flows only, not direct static assertion extension class calls as workarounds; never hide ambiguities by bypassing extension resolution. Fix root causes, remove dead/duplicate code, and keep tests as quality gates.
+
+## Assertion Architecture
+- For CatchyAssertions architecture, prefer a single unified generator-driven extension-based approach across core and integrations, with gradual migration and minimal duplicated hand-written assertion types.
+- Migrate most assertions to generated ValueAssertion<TValue>-based types; keep ObjectAssertions and QuantifiedAssertions as specific entry-point exceptions; use generator-first approach with bundle attributes instead of interfaces.
+- Migration direction must move toward ValueAssertion<TValue> with bundle-driven generated extensions for string modifiers, away from IUsesStringComparison marker-interface gating; avoid reverting to StringAssertions-specific transition types.
+- In assertion unification, known typed transitions must converge to type-driven ValueAssertion<T>-style surfaces inferred from TValue itself. Do not route known types through dedicated wrappers like StringAssertions or ObjectAssertions<T>; ObjectAssertions remains only an exceptional unknown/fallback entry point.
+- Prefer modern-first implementation in CatchyAssertions: adopt newer .NET features as soon as justified, with #if guards and split implementations for older TFMs; avoid legacy paths when feature value exists only in modern TFMs.
+- Prefer explicit, self-descriptive attribute names; avoid unclear abbreviations like AssertBl.
+- Use concrete assertion wrappers only for domain-specific cases where binding to a common TValue (like string) would create API ambiguity or IntelliSense pollution; prefer ValueAssertion<T> by default and keep wrapper usage deliberate and minimal. Keep concrete assertion types only when they are technically required (e.g., real API/signature conflicts); otherwise, prefer unified ValueAssertions<T>-based APIs and avoid keeping wrappers just for style.
+- Minimize wrapper entity proliferation: use ValueAssertion<T> with extension methods when there is no IntelliSense/API conflict; keep dedicated assertion wrapper classes only when they provide clear isolation/value.
+- Avoid dedicated assertion classes like StringAssertions/PwLocatorAssertions except true special cases; rely on auto-generated ValueAssertion<TValue> transitions with bundle inference/application for extension surface.
+- Do not keep separate assertion classes like StatefulAsserterAssertions; target architecture is type-driven ValueAssertion<T> surfaces (e.g., ValueAssertion<StatefulAsserter>, ValueAssertion<string>, ValueAssertion<int>) to reduce hardcoded wrappers and duplication.
+- In assertion unification, replace StringAssertions and most similar classes with ValueAssertion<T>; fluent chains should land on generated/type-driven extensions (e.g., string-related extensions), not dedicated StringAssertions wrapper classes.
+- Assertion-unification rules: typed methods must target ValueAssertion<T> exactly, universal methods that apply to any assertion must keep TSelf-style generic chaining, and migration must stay generator-first rather than hand-written hardcoded replacements.
+- Methods like WithRule and similar configuration/rule APIs are not universal; they must remain bundle-gated or support-gated rather than being widened to all IAssertions.
+- Extension methods must target ValueAssertion<T> directly, not concrete assertion classes or ValueAssertion<TSelf, TValue>; hardcoded concrete assertion families should be minimized, with ObjectAssertions only as a temporary exception.
+- Do not broaden built-in assertion extension methods so they attach to all ValueAssertion<T>. Applicability must stay bundle-driven and source-generated.
+- Never make methods globally available just to fix compile errors. If method magnetism/intellisense is wrong, fix generator/type mapping or bundle metadata; do not widen receivers. Only methods that are truly valid for every assertion type may be global. All other methods must remain strict and type/bundle-gated so IntelliSense shows only valid APIs.
+- Built-in assertions should be authored in a source-generator-friendly form similar to custom user assertions, with bundle metadata deciding where methods are emitted. If cloning or delegation is needed, generate that surface from metadata rather than hardcoding concrete families or universal extensions. When refactoring assertion surfaces, prefer reverting incorrect over-broad magnetism and continuing from bundle/source-generator infrastructure, rather than compensating with more manual concrete wrappers.
+- Fixes in this area must be progress-tracked step by step so architectural pivots are visible while the refactor is underway.
+- Progress must be visible: document the architectural direction in repo instructions and keep plan-step status updated as work proceeds.
+- For this refactor, do not "just make it compile" by widening receivers. Preserve bundle gating first, then move built-ins onto the generator path.
+- New source generator work should cover quantified entrypoints, bundle application, and built-in assertion surface emission; do not rely on the old quantified-only generation approach as the target architecture.
+- If a generated assertion shell is kept temporarily, it must be only a thin source-generated surface over ValueAssertion<T>, not a renewed hardcoded assertion family.
+- Before expanding assertion applicability, verify that the same effect cannot be achieved by bundle metadata and generated delegation.
+- Bundle metadata replaces interface-based magnetism; interfaces must not be used as the long-term selector for assertion surface availability.
+- Keep fixing forward on the agreed generator-first architecture; do not introduce fresh manual assertion families as an intermediate design.
+- User-provided custom assertion authoring style is the model for built-ins: author once, emit appropriate fluent surface through generation.
+- For this repo, generator-first means the new source generator is the primary architecture driver, not the old console-era quantified generator pattern.
+- Bundle-gated applicability is more important than preserving older hand-written extension receiver shapes.
+- If a step accidentally broadens applicability to everything, revert that step before proceeding.
+- Any temporary exception surface must remain explicit and minimal; ObjectAssertions is the main allowed fallback exception for now, intentionally preventing Object assertion methods from leaking onto all ValueAssertions<T> types.
+- Continue with visible movement: document the direction, revert wrong broadening, then proceed with generator-side bundle emission.
+- The user expects real refactoring, not partial mechanical rewrites that preserve the same hardcoded architecture.
+- Keep architectural chaos down: remove wrong-direction changes instead of layering more fixes on top of them.
+- The next generator work should move built-in assertion availability behind bundle application rather than direct globally-visible ValueAssertion<T> extensions.
+- Thin generated shells are acceptable only when they serve bundle/source-generated routing and do not become new manual hardcoded assertion families.
+- Generator-emitted surfaces must preserve fluent chaining behavior like And/GetAwaiter by inheriting from the correct ValueAssertion base.
+- Do not treat compilation success alone as sufficient in this refactor; architectural alignment with bundle-driven generation is required.
+- When uncertain, favor metadata + generated delegation over new hand-written assertion receiver types.
+- This refactor should reduce hardcode and duplication, not relocate it.
+- Keep the repo instructions aligned with the latest agreed architecture before continuing implementation.
+- The immediate corrective sequence is: document direction, revert over-broad ValueAssertion<T> magnetism, then continue bundle/source-generator refactor with progress tracking.
+- Use the new source generator to own quantified, bundle, and built-in assertion emission together.
+- Preserve user corrections as authoritative architecture constraints for subsequent steps.
+- Generator-driven bundle surfaces must be the source of truth for which assertion methods appear on which typed assertions.
+- Avoid universal extension methods as a substitute for missing generator support.
+- If an old concrete assertion family remains, treat it as debt to reduce, not as the basis for new work.
+- Every correction here should move the codebase closer to bundle-driven generated surfaces and farther from hardcoded class-by-class receivers.
+- Do not repeat receiver broadening mistakes after they have been explicitly rejected.
+- Architectural progress in this refactor means less hardcode, less duplication, more metadata-driven generation, and stricter bundle-controlled applicability.
+- Prefer source-generated delegation/cloning from shared assertion definitions over hand-written duplicated method surfaces.
+- Reuse base/runtime infrastructure when useful, but surface availability must be emitted through generator rules, not attached globally.
+- Continue only in the generator-first bundle-driven direction from this point.
+- When documenting this area, be explicit that bundle gating outranks convenience broadening of ValueAssertion<T> receivers.
+- The agreed movement pattern is: fix direction, record it, show progress, and keep implementation aligned with bundle-driven source generation.
+- This repository prefers explicit architectural guardrails in instructions when the refactor direction has been repeatedly corrected.
+- Do not silently preserve old architecture under new base types.
+- Minimize chaos: one coherent generator-first path, not mixed broadening plus legacy concrete families.
+- Concrete assertion surfaces should survive only as explicit exceptions while the generator path replaces them.
+- The purpose of ValueAssertion<T> is to be the unified typed substrate, while actual built-in surface attachment is controlled by generator + bundles.
+- Do not reintroduce broad global ValueAssertion<T> extension surfacing after documenting that it is wrong.
+- Keep moving with visible step tracking after documenting the direction.
+- Repo instruction updates in this area are intentional architecture constraints, not optional suggestions.
+- The current priority after documentation is reverting the recent broadening and resuming generator-driven bundle emission.
+- Generator-emitted availability should remain selective, explicit, and metadata-based.
+- Avoid manual patch spirals; correct the direction and keep changes aligned with it.
+- The refactor goal is a unified but bundle-selective generated assertion model over ValueAssertion<T>.
+- Keep ObjectAssertions as fallback exception, not the default path for known bundle-capable types.
+- Generated code should express the new architecture, not preserve the old one with different base class names.
+- Continue implementation only if each step can be explained as reducing hardcode or improving generator ownership of assertion surfaces.
+- In this repo, architectural correctness for assertion applicability is a first-class requirement alongside compilation.
+- If a temporary workaround increases global assertion visibility, it is the wrong workaround for this refactor.
+- Favor source definitions plus generated surfaces over direct hand-written exposure.
+- Keep the movement explicit and visible while proceeding after this documentation update.
+- The next actionable code step after documenting this is reverting the over-broad common assertion receivers and continuing generator-side bundle surfacing.
+- The new source generator, not ad hoc extension widening, is the intended mechanism for finishing this refactor.
+- Bundle-driven generated availability is the contract; broad ValueAssertion<T> method visibility is not.
+- Preserve this direction consistently in future edits.
+- When moving fast, do not sacrifice bundle selectivity.
+- A change that broadens everything is architectural regression even if it compiles.
+- Continue with fixed direction and visible plan progress.
+
+## Assertion Metadata Guidelines
+- Prefer using AssertionPipeline/AssertionInfo plus slots for exceptional metadata; avoid adding optional fields to ValueAssertion when the data already exists in the pipeline or can live in a slot.
+- State that can switch between chain parts belongs to chain-part state, not to the shared AssertionPipeline; the pipeline remains the shared execution context for the whole chain.
+
+## Bundle Guidelines
+- Bundles in this repo must not be modeled as interfaces or named like interfaces. They should be plain constants/metadata tokens used only for generation-time applicability, without pretending to provide runtime polymorphism or interface semantics.
+- ValueAssertion is per-chain-segment and recreated on cross-type transitions; the pipeline holds the state for the whole chain, not ValueAssertion.
+- Do not manually edit generated files; change the source generator so generated code is produced correctly from source.
+- Prefer maximum unification through generators and templates for core/user extension APIs; allow class-level attributes on extension classes only when justified, but avoid hardcoded extension classes when generator can produce them.
+- For numeric assertions, duplicated hardcoded extensions are not acceptable; API methods should be defined as templates and real extensions must be generated package-level by bundle/source generator for signed target types.
+- ObjectAssertions should remain a fallback that can accept any type, but shared/bundle-gated helpers must not be broadened onto all ValueAssertions. Deep equal rule and similar bundle-sensitive APIs must stay trailing and bundle-selective, not globally attached to every assertion wrapper.
+- Playwright assertions must be extension-only on ValueAssertions<T> with no concrete PwPageAssertions fallback types; the visual Playwright package must also be refactored to the same generic ValueAssertions<IPage> pattern.
+- User requires attribute-driven, fully generic generator design: no hardcoded bundle names or quantified-type classes in the source generator; generator should discover bundles and arity from attributes on any applicable methods/types, and quantified behavior must remain generic rather than per-type wrappers.
+- For bundle-driven assertion APIs, [ApplyToBundle] methods must be authored as templates without `this`; the source generator must clone them only onto explicitly subscribed target types (e.g., ValueAssertions<string>), and must not rely on global extension-method magnetism or invent StringAssertions types.
+- For quantified assertions, do not use AsyncLocal or per-operation wrapping; execute the full lazy assertion chain per item via a quantified wrapper.
+- Aggressive assertion-surface unification is required: wrapper classes (including AssemblyAssertions/TypeCollectionAssertions/CollectionAssertions and temporal wrappers) are not justified by navigation properties or out parameters; prefer extension-method-based APIs over dedicated wrapper types.
+- Use nullable bundling for IsNull/IsNotNull when behavior is identical; avoid repeating manual null-check assertion methods in each assertion class. Nullable methods should be provided via the Nullable bundle (no per-type manual IsNull/IsNotNull); preferred direction is generator-driven automatic nullable bundle application when assertion target type is nullable, with string-like reference types handled consistently.
+- Prefer fluent extension-method transitions over property-based transitions; avoid concrete wrapper types unless technically exceptional (e.g. fallback object and quantified assertions); remove thin concrete wrappers used only for transitions; keep Playwright and similar surfaces consistent with this method-based transition model.
+- For generator-only template surfaces, hide them from IntelliSense when possible, e.g. with EditorBrowsable(EditorBrowsableState.Never).
+
+## Assertion Configuration Guidelines
+- Global With(...) should be used only for low-noise chain-wide config modifiers that do not require type-specific state; explicit capability methods (e.g., IgnoringCase/UseOrdinal, Ascending/Descending) should be exposed only on expected assertion surfaces (typed extensions or bundle-gated), not globally.
+- Bundles should be reserved for true fan-out/template scenarios; direct non-template extension methods should not be bundled and should stay as normal typed extensions.

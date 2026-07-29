@@ -1,0 +1,5 @@
+﻿<Project>
+  <ItemGroup>
+    <AssemblyAttribute Include="Catchy.NUnit.SoftAssertions" />
+  </ItemGroup>
+</Project>

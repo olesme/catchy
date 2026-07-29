@@ -1,0 +1,63 @@
+{
+  "$schema": "https://alirezanet.github.io/Husky.Net/schema.json",
+  "tasks": [
+    {
+      "name": "markdown-lint",
+      "group": "pre-commit",
+      "command": "npx",
+      "args": [
+        "--yes",
+        "markdownlint-cli2@0.14.0",
+        "README.md",
+        "CONTRIBUTING.md",
+        "docs/**/*.md"
+      ]
+    },
+    {
+      "name": "fast-build",
+      "group": "pre-commit",
+      "command": "dotnet",
+      "args": [
+        "build",
+        "CatchyAssertions.slnx",
+        "-m:1"
+      ]
+    },
+    {
+      "name": "build-for-tests",
+      "group": "pre-push",
+      "command": "dotnet",
+      "args": [
+        "build",
+        "CatchyAssertions.slnx",
+        "-c",
+        "Release",
+        "-m:1"
+      ]
+    },
+    {
+      "name": "core-tests",
+      "group": "pre-push",
+      "command": "dotnet",
+      "args": [
+        "test",
+        "tests/CatchyCoreTests/CatchyCoreTests.csproj",
+        "-c",
+        "Release",
+        "--no-build"
+      ]
+    },
+    {
+      "name": "sourcegen-tests",
+      "group": "pre-push",
+      "command": "dotnet",
+      "args": [
+        "test",
+        "tests/CatchySourceGenTests/CatchySourceGenTests.csproj",
+        "-c",
+        "Release",
+        "--no-build"
+      ]
+    }
+  ]
+}

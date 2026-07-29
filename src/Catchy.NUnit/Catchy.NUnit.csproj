@@ -1,0 +1,30 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+	<PropertyGroup>
+		<TargetFrameworks>netstandard2.0;net5.0;net6.0;net7.0;net8.0;net9.0</TargetFrameworks>
+		<LangVersion>14</LangVersion>
+		<Nullable>enable</Nullable>
+		<ImplicitUsings>disable</ImplicitUsings>
+		<AllowUnsafeBlocks>false</AllowUnsafeBlocks>
+		<AssemblyName>Catchy.NUnit</AssemblyName>
+		<RootNamespace>Catchy.NUnit</RootNamespace>
+		<PackageId>Catchy.NUnit</PackageId>
+		<Description>Catchy integration package for NUnit with soft/hard assertion workflow support.</Description>
+		<PackageReadmeFile>README.md</PackageReadmeFile>
+	</PropertyGroup>
+
+	<ItemGroup>
+	  <PackageReference Include="NUnit" Version="3.13.3" />
+	</ItemGroup>
+
+	<ItemGroup>
+	  <ProjectReference Include="..\Catchy\Catchy.csproj" />
+	</ItemGroup>
+
+	<ItemGroup>
+		<None Include="build\Catchy.NUnit.targets" Pack="true" PackagePath="build\" />
+		<None Include="buildTransitive\Catchy.NUnit.targets" Pack="true" PackagePath="buildTransitive\" />
+		<None Include="README.md" Pack="true" PackagePath="\" />
+	</ItemGroup>
+
+</Project>
