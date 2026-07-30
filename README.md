@@ -17,7 +17,7 @@ dotnet add package Catchy.XUnit   # or .NUnit / .MSTest / .TUnit / .Reqnroll
 ## Quick look
 
 ```csharp
-using static Catchy.StatelessAlias;
+using static Catchy.Stateless;
 
 await Assert.That(user.Name).IsNotNull();
 await Assert.That(order.Total).IsGreaterThan(0m).Because("free orders go through promotions");
@@ -32,6 +32,17 @@ using static Catchy.AmbientSoft;
 await Verify.That(order.Id).IsGreaterThan(0);
 await Verify.That(order.Total).IsGreaterThan(0m);
 await Verify.That(order.Status).IsNotEmpty();
+```
+
+Soft and hard assertions plus flush
+
+```csharp
+using static Catchy.Ambient;
+
+await Assert.That(order.Id).IsGreaterThan(0);
+await Assert.Soft.That(order.Total).IsGreaterThan(0m);
+await Verify.That(order.Status).IsNotEmpty();
+await Assert.That().SoftState().HasNoErrors(); // Hard flush
 ```
 
 ## Why Catchy?
