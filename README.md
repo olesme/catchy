@@ -42,7 +42,7 @@ using static Catchy.Ambient;
 await Assert.That(order.Id).IsGreaterThan(0);
 await Assert.Soft.That(order.Total).IsGreaterThan(0m);
 await Verify.That(order.Status).IsNotEmpty();
-await Assert.That().SoftState().HasNoErrors(); // Hard flush
+await Assert.That().SoftState().HasNoErrors(); // Explicit flush (automatic flushing is available via runner-specific packages)
 ```
 
 ## Why Catchy?
