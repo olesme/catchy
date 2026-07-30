@@ -85,27 +85,7 @@ Catchy uses package-delivered source generation with explicit opt-in:
 
 See [SourceGenerator_Architecture.md](SourceGenerator_Architecture.md) and `tests/NuGetPackageSmoke` for the package-consumption validation flow.
 
-## Mascot assets
-
-Cat Chy artwork is used in repository docs to visualize bug-catching and QA checklist flows.
-For consistent rendering on GitHub light/dark themes, prefer transparent PNG backgrounds with good contrast.
-
-## Project state
-
-Canonical docs describe the current behavior in this branch.
-Obsolete status/progress docs are not kept in `docs/`.
-
-## Documentation maintenance rule
-
-When implementation behavior changes, update canonical docs in the same change set:
-
-- `docs/readme.md`
-- `docs/USAGE_GUIDE.md`
-- `docs/ARCHITECTURE.md`
-- `docs/SourceGenerator_Architecture.md`
-- `docs/repository-structure.md` (when layout changes)
-
-Process templates (post-publication workflow):
+Process templates:
 
 - integration proposals: `.github/ISSUE_TEMPLATE/integration-package.yml`
 - integration regressions: `.github/ISSUE_TEMPLATE/integration-bug.yml`
