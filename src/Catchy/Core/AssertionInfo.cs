@@ -16,7 +16,6 @@ namespace Catchy
         public object? Expected { get; } = expected;
         public string? UserMessage { get; } = userMessage; 
         public AssertionStatus Status { get; } = status;
-        public bool Success => Status == AssertionStatus.Passed;
         public TimeSpan Duration { get; } = duration; 
         public Exception? Exception { get; } = exception;
 
