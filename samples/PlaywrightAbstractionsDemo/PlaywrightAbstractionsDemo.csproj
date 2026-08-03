@@ -10,11 +10,13 @@
 
 	<ItemGroup>
 		<PackageReference Include="TUnit" Version="1.62.0" />
+		<PackageReference Include="Microsoft.Playwright" Version="1.61.0" />
 	</ItemGroup>
 
 	<ItemGroup>
 		<ProjectReference Include="..\..\src\Catchy.SourceGenerator\Catchy.SourceGenerator.csproj" OutputItemType="Analyzer" ReferenceOutputAssembly="false" PrivateAssets="all" />
 		<ProjectReference Include="..\..\src\Catchy\Catchy.csproj" />
+		<ProjectReference Include="..\..\src\Catchy.Playwright\Catchy.Playwright.csproj" />
 		<ProjectReference Include="..\..\src\Catchy.TUnit\Catchy.TUnit.csproj" />
 		<ProjectReference Include="..\..\tests\CatchyTestHelpers\CatchyTestHelpers.csproj" />
 	</ItemGroup>

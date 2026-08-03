@@ -34,7 +34,7 @@ namespace XFAIL_AmbientReqnrollTests.StepDefinitions
         [When("I flush hard")]
         public async Task WhenIFlushHard()
         {
-            await Stateless.Assert.That(GetAsserter().Soft).HasNoErrors();
+            await GetAsserter().That().SoftState().HasNoErrors();
         }
 
         [When("I flush hard with try-catch")]
