@@ -6,33 +6,69 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: 'Package version (e.g. 0.1.0-preview.1)'
-        required: true
+        description: 'Optional NuGet version override (e.g. 1.2.3). Leave empty to auto-bump from the latest vX.Y.Z tag.'
+        required: false
+        type: string
 
 jobs:
   publish:
     runs-on: windows-latest
     permissions:
       id-token: write  # required for Trusted Publishing OIDC
-      contents: read
+      contents: write  # required to create/update the auto-bump tag when workflow_dispatch is used
 
     steps:
       - name: Checkout
         uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
 
       - name: Setup .NET SDK
         uses: actions/setup-dotnet@v6
         with:
           global-json-file: global.json
 
+      - name: Restore .NET tools
+        run: dotnet tool restore
+
       - name: Resolve version
         id: version
         shell: pwsh
         run: |
           if ('${{ github.event_name }}' -eq 'release') {
-            $v = '${{ github.event.release.tag_name }}' -replace '^v',''
+            # Release event: use the exact release tag, without forcing a manual fallback.
+            $v = '${{ github.event.release.tag_name }}'.Trim()
+            if ([string]::IsNullOrWhiteSpace($v)) {
+              throw 'Release tag is empty.'
+            }
+            $v = $v.TrimStart('v', 'V')
+            if ($v -notmatch '^[0-9]+\.[0-9]+\.[0-9]+$') {
+              throw "Release tag must be SemVer like v1.2.3. Received: $v"
+            }
+          } elseif (-not [string]::IsNullOrWhiteSpace('${{ inputs.version }}')) {
+            # workflow_dispatch: explicit manual override
+            $v = '${{ inputs.version }}'.Trim()
+            $v = $v.TrimStart('v', 'V')
+            if ($v -notmatch '^[0-9]+\.[0-9]+\.[0-9]+$') {
+              throw "Manual version must be a SemVer without a leading 'v' (for example: 1.2.3)"
+            }
           } else {
-            $v = '${{ inputs.version }}'
+            # workflow_dispatch: auto-bump patch from the latest semver tag
+            git fetch --tags
+            $latestTag = git tag -l "v[0-9]*.[0-9]*.[0-9]*" |
+              Sort-Object { [System.Version]($_ -replace '^v','') } |
+              Select-Object -Last 1
+            if (-not $latestTag) {
+              $latestTag = 'v0.0.0'
+              Write-Host 'No semver tag found; starting from v0.0.0 and creating v0.0.1.'
+            }
+            $parts = ($latestTag -replace '^v','').Split('.')
+            $parts[2] = [int]$parts[2] + 1
+            $v = $parts -join '.'
+            git config user.name  "github-actions[bot]"
+            git config user.email "github-actions[bot]@users.noreply.github.com"
+            git tag "v$v"
+            git push origin "v$v"
           }
           Write-Output "version=$v" >> $env:GITHUB_OUTPUT
           Write-Host "Publishing version: $v"
@@ -41,6 +77,7 @@ jobs:
         shell: pwsh
         run: |
           $ver = '${{ steps.version.outputs.version }}'
+          $vArgs = '-p:MinVerSkip=true', "-p:Version=$ver", "-p:PackageVersion=$ver"
           New-Item -ItemType Directory -Path artifacts/local-feed -Force | Out-Null
           @(
             'src/Catchy.SourceGenerator/Catchy.SourceGenerator.csproj',
@@ -48,13 +85,13 @@ jobs:
             'src/Catchy.Cecil/Catchy.Cecil.csproj',
             'src/Catchy.Playwright/Catchy.Playwright.csproj',
             'src/Catchy.Playwright.Visual/Catchy.Playwright.Visual.csproj'
-          ) | ForEach-Object { dotnet pack $_ -o artifacts/local-feed -p:CatchyPackageVersion=$ver }
+          ) | ForEach-Object { dotnet pack $_ -o artifacts/local-feed @vArgs }
 
       - name: Restore
         run: dotnet restore CatchyAssertions.slnx -p:RestoreAdditionalProjectSources="${{ github.workspace }}/artifacts/local-feed" -p:CatchyPackageVersion=${{ steps.version.outputs.version }}
 
       - name: Build
-        run: dotnet build CatchyAssertions.slnx -c Release --no-restore -m:1 -p:CatchyPackageVersion=${{ steps.version.outputs.version }}
+        run: dotnet build CatchyAssertions.slnx -c Release --no-restore -m:1 -p:MinVerSkip=true -p:Version=${{ steps.version.outputs.version }} -p:PackageVersion=${{ steps.version.outputs.version }}
 
       - name: Test (gate)
         run: |
@@ -66,6 +103,7 @@ jobs:
         run: |
           $ver = '${{ steps.version.outputs.version }}'
           $out = 'artifacts/publish'
+          $vArgs = '-p:MinVerSkip=true', "-p:Version=$ver", "-p:PackageVersion=$ver"
           New-Item -ItemType Directory -Path $out -Force | Out-Null
           @(
             'src/Catchy/Catchy.csproj',
@@ -79,7 +117,7 @@ jobs:
             'src/Catchy.MSTest/Catchy.MSTest.csproj',
             'src/Catchy.TUnit/Catchy.TUnit.csproj',
             'src/Catchy.Reqnroll/Catchy.ReqnrollPlugin.csproj'
-          ) | ForEach-Object { dotnet pack $_ -c Release --no-build -o $out -p:CatchyPackageVersion=$ver }
+          ) | ForEach-Object { dotnet pack $_ -c Release --no-build -o $out @vArgs }
 
       - name: NuGet smoke (local feed validation)
         shell: pwsh
@@ -103,6 +141,19 @@ jobs:
           ($pkgs + $syms) | ForEach-Object {
             dotnet nuget push $_.FullName `
               --api-key ${{ steps.nuget-login.outputs.NUGET_API_KEY }} `
-              --source https://api.nuget.org/v3/index.json `
-              --skip-duplicate
+              --source https://api.nuget.org/v3/index.json
           }
+
+      # Explicit version input is authoritative; no fallback bump when a version is provided.
+      # If a package version already exists on NuGet, the push must fail red rather than silently ignoring it.
+
+      - name: Verify version selection
+        shell: pwsh
+        run: |
+          $explicit = '${{ inputs.version }}'
+          if (-not [string]::IsNullOrWhiteSpace($explicit)) {
+            Write-Host "Manual version is set: $explicit"
+            return
+          }
+          Write-Host "No explicit manual version was supplied; auto-bump behavior is allowed."
+
