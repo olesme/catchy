@@ -53,18 +53,62 @@ jobs:
               throw "Manual version must be a SemVer without a leading 'v' (for example: 1.2.3)"
             }
           } else {
-            # workflow_dispatch: auto-bump patch from the latest semver tag
+            # workflow_dispatch: auto-bump to the next free NuGet-compatible version.
+            # If the latest tag is already occupied on NuGet, keep incrementing until we find an unused version.
             git fetch --tags
             $latestTag = git tag -l "v[0-9]*.[0-9]*.[0-9]*" |
               Sort-Object { [System.Version]($_ -replace '^v','') } |
               Select-Object -Last 1
             if (-not $latestTag) {
               $latestTag = 'v0.0.0'
-              Write-Host 'No semver tag found; starting from v0.0.0 and creating v0.0.1.'
+              Write-Host 'No semver tag found; starting from v0.0.0.'
             }
-            $parts = ($latestTag -replace '^v','').Split('.')
-            $parts[2] = [int]$parts[2] + 1
-            $v = $parts -join '.'
+
+            $baseVersion = [version]($latestTag -replace '^v','')
+            $candidate = [version]::new($baseVersion.Major, $baseVersion.Minor, $baseVersion.Build)
+            $packages = @(
+              'Catchy',
+              'Catchy.Analyzers',
+              'Catchy.Cecil',
+              'Catchy.MSTest',
+              'Catchy.NUnit',
+              'Catchy.Playwright',
+              'Catchy.Playwright.Visual',
+              'Catchy.ReqnrollPlugin',
+              'Catchy.SourceGenerator',
+              'Catchy.TUnit',
+              'Catchy.XUnit'
+            )
+
+            $attempts = 0
+            do {
+              $candidateStr = $candidate.ToString()
+              $taken = $false
+              foreach ($pkg in $packages) {
+                $uri = "https://api.nuget.org/v3-flatcontainer/$($pkg.ToLowerInvariant())/index.json"
+                try {
+                  $existing = Invoke-RestMethod -Uri $uri -Method Get -ErrorAction Stop
+                  if ($existing.versions -contains $candidateStr) {
+                    $taken = $true
+                    break
+                  }
+                } catch {
+                  # Package not published yet; treat this as free.
+                }
+              }
+
+              if (-not $taken) {
+                $v = $candidateStr
+                break
+              }
+
+              $candidate = [version]::new($candidate.Major, $candidate.Minor, $candidate.Build + 1)
+              $attempts += 1
+              if ($attempts -gt 1000) {
+                throw "Could not find a free publish version after 1000 attempts."
+              }
+            } while ($true)
+
             git config user.name  "github-actions[bot]"
             git config user.email "github-actions[bot]@users.noreply.github.com"
             git tag "v$v"
@@ -136,12 +180,16 @@ jobs:
       - name: Push to NuGet.org
         shell: pwsh
         run: |
+          $ErrorActionPreference = 'Stop'
           $pkgs = Get-ChildItem 'artifacts/publish/*.nupkg' | Where-Object { $_.Name -notmatch '\.symbols\.' }
           $syms = Get-ChildItem 'artifacts/publish/*.snupkg'
-          ($pkgs + $syms) | ForEach-Object {
-            dotnet nuget push $_.FullName `
-              --api-key ${{ steps.nuget-login.outputs.NUGET_API_KEY }} `
-              --source https://api.nuget.org/v3/index.json
+          foreach ($pkg in ($pkgs + $syms)) {
+            $cmd = "dotnet nuget push \"$($pkg.FullName)\" --api-key ${{ steps.nuget-login.outputs.NUGET_API_KEY }} --source https://api.nuget.org/v3/index.json"
+            Write-Host $cmd
+            & dotnet nuget push $pkg.FullName --api-key ${{ steps.nuget-login.outputs.NUGET_API_KEY }} --source https://api.nuget.org/v3/index.json
+            if ($LASTEXITCODE -ne 0) {
+              throw "NuGet push failed for $($pkg.FullName)."
+            }
           }
 
       # Explicit version input is authoritative; no fallback bump when a version is provided.
@@ -155,4 +203,43 @@ jobs:
             return
           }
           Write-Host "No explicit manual version was supplied; auto-bump behavior is allowed."
+
+      - name: Guard against occupied auto-bump version
+        shell: pwsh
+        run: |
+          $v = '${{ steps.version.outputs.version }}'
+          if ([string]::IsNullOrWhiteSpace($v)) {
+            throw 'Resolved publish version is empty.'
+          }
+          Write-Host "Resolved version for publish: $v"
+          # If the generated version was already published, this step should fail before packaging/pushing.
+          # The workflow intentionally rejects duplicate versions instead of silently treating them as success.
+          # We do not allow auto-generated versions to remain stale or repeat when NuGet already has the package.
+          $published = Invoke-RestMethod -Uri "https://api.nuget.org/v3-flatcontainer/catchy/index.json" -Method Get -ErrorAction SilentlyContinue
+          if ($published -and $published.versions -contains $v) {
+            throw "Resolved version $v already exists on NuGet.org; choose a new version or provide an explicit version input."
+          }
+
+          $packages = @(
+            'Catchy',
+            'Catchy.Analyzers',
+            'Catchy.Cecil',
+            'Catchy.MSTest',
+            'Catchy.NUnit',
+            'Catchy.Playwright',
+            'Catchy.Playwright.Visual',
+            'Catchy.ReqnrollPlugin',
+            'Catchy.SourceGenerator',
+            'Catchy.TUnit',
+            'Catchy.XUnit'
+          )
+
+          foreach ($pkg in $packages) {
+            $uri = "https://api.nuget.org/v3-flatcontainer/$($pkg.ToLowerInvariant())/index.json"
+            $resp = Invoke-RestMethod -Uri $uri -Method Get -ErrorAction SilentlyContinue
+            if ($resp -and $resp.versions -contains $v) {
+              throw "NuGet version $v is already published for package $pkg; choose a new version before publishing."
+            }
+          }
+
 
