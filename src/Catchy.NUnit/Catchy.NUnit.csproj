@@ -13,8 +13,12 @@
 		<PackageReadmeFile>README.md</PackageReadmeFile>
 	</PropertyGroup>
 
-	<ItemGroup>
+	<ItemGroup Condition="'$(TargetFramework)' == 'netstandard2.0' or '$(TargetFramework)' == 'net5.0' or '$(TargetFramework)' == 'net6.0' or '$(TargetFramework)' == 'net7.0'">
 	  <PackageReference Include="NUnit" Version="3.13.3" />
+	</ItemGroup>
+
+	<ItemGroup Condition="'$(TargetFramework)' == 'net8.0' or '$(TargetFramework)' == 'net9.0'">
+	  <PackageReference Include="NUnit" Version="4.6.1" />
 	</ItemGroup>
 
 	<ItemGroup>
@@ -25,6 +29,10 @@
 		<None Include="build\Catchy.NUnit.targets" Pack="true" PackagePath="build\" />
 		<None Include="buildTransitive\Catchy.NUnit.targets" Pack="true" PackagePath="buildTransitive\" />
 		<None Include="README.md" Pack="true" PackagePath="\" />
+	</ItemGroup>
+
+	<ItemGroup>
+	  <PackageReference Update="MinVer" Version="8.0.0" />
 	</ItemGroup>
 
 </Project>
