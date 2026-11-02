@@ -5,15 +5,34 @@
 	<Nullable>enable</Nullable>
 	<ImplicitUsings>enable</ImplicitUsings>
 	<AllowUnsafeBlocks>false</AllowUnsafeBlocks>
+	<SuppressTfmSupportBuildWarnings Condition="'$(TargetFramework)' == 'netstandard2.0' or '$(TargetFramework)' == 'net5.0' or '$(TargetFramework)' == 'net6.0' or '$(TargetFramework)' == 'net7.0'">true</SuppressTfmSupportBuildWarnings>
+	<NoWarn>$(NoWarn);NU1701;NU1702</NoWarn>
 	<AssemblyName>Catchy</AssemblyName>
 	<RootNamespace>Catchy</RootNamespace>
 	<Description>Core Catchy async-native fluent assertions for .NET with generator-powered assertion surfaces.</Description>
 	<PackageReadmeFile>README.md</PackageReadmeFile>
   </PropertyGroup>
 
-	<ItemGroup Condition="'$(TargetFramework)' == 'netstandard2.0'">
-		<PackageReference Include="System.Text.Json" Version="10.0.10" />
+  <PropertyGroup Condition="'$(TargetFramework)' == 'net8.0' or '$(TargetFramework)' == 'net9.0'">
+	<NoWarn>$(NoWarn)</NoWarn>
+  </PropertyGroup>
+
+  <PropertyGroup Condition="'$(TargetFramework)' == 'net8.0' or '$(TargetFramework)' == 'net9.0'">
+	<SuppressTfmSupportBuildWarnings>false</SuppressTfmSupportBuildWarnings>
+  </PropertyGroup>
+
+	<ItemGroup Condition="'$(TargetFramework)' == 'netstandard2.0' or '$(TargetFramework)' == 'net5.0' or '$(TargetFramework)' == 'net6.0' or '$(TargetFramework)' == 'net7.0'">
+		<PackageReference Include="System.Text.Json" Version="8.0.5" />
 	</ItemGroup>
+
+	<ItemGroup Condition="'$(TargetFramework)' == 'net8.0' or '$(TargetFramework)' == 'net9.0'">
+		<PackageReference Include="System.Text.Json" Version="10.0.14" />
+	</ItemGroup>
+
+  <ItemGroup>
+	<PackageReference Update="Microsoft.SourceLink.GitHub" Version="10.0.403" />
+	<PackageReference Update="MinVer" Version="8.0.0" />
+  </ItemGroup>
 
   <ItemGroup>
 	<ProjectReference Include="..\Catchy.SourceGenerator\Catchy.SourceGenerator.csproj" OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
@@ -23,4 +42,4 @@
 	<None Include="README.md" Pack="true" PackagePath="\" />
   </ItemGroup>
 
-  </Project>
+</Project>

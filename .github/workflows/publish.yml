@@ -146,7 +146,6 @@ jobs:
 
       # Explicit version input is authoritative; no fallback bump when a version is provided.
       # If a package version already exists on NuGet, the push must fail red rather than silently ignoring it.
-
       - name: Verify version selection
         shell: pwsh
         run: |

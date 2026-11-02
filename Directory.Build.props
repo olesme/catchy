@@ -1,13 +1,14 @@
 <Project>
-  <!-- Single source of truth for the version of packages produced from src/ and consumed by
-       tests/NuGetPackageSmoke. Override on the command line to pack and smoke-test a real version:
-       dotnet pack ... -p:CatchyPackageVersion=1.2.3  /  dotnet build ... -p:CatchyPackageVersion=1.2.3 -->
+  <!-- MinVer derives the version from the nearest git tag (prefix "v", e.g. v0.2.0).
+       CatchyPackageVersion is used only by tests/NuGetPackageSmoke to reference the same version;
+       CI passes it via -p:CatchyPackageVersion=$(dotnet minver). For a manual local smoke run:
+       dotnet build tests/NuGetPackageSmoke/... -p:CatchyPackageVersion=$(dotnet minver) -->
   <PropertyGroup>
 	<CatchyPackageVersion Condition="'$(CatchyPackageVersion)' == ''">0.0.0</CatchyPackageVersion>
+	<MinVerTagPrefix>v</MinVerTagPrefix>
   </PropertyGroup>
 
   <PropertyGroup Condition="($([System.String]::Copy('$(MSBuildProjectDirectory)').Contains('\src\')) or $([System.String]::Copy('$(MSBuildProjectDirectory)').Contains('/src/'))) and '$(IsPackable)' != 'false'">
-	<Version>$(CatchyPackageVersion)</Version>
 	<Authors>Oles Menzer (Oleksandr Menzerov)</Authors>
 	<Copyright>Copyright (c) 2026 Oles Menzer (Oleksandr Menzerov)</Copyright>
 	<PackageTags>assertions;testing;fluent;async;dotnet</PackageTags>
@@ -31,6 +32,7 @@
   <ItemGroup Condition="($([System.String]::Copy('$(MSBuildProjectDirectory)').Contains('\src\')) or $([System.String]::Copy('$(MSBuildProjectDirectory)').Contains('/src/'))) and '$(IsPackable)' != 'false'">
 	<None Include="$(MSBuildThisFileDirectory)LICENSE" Pack="true" PackagePath="\" Link="LICENSE" Visible="false" />
 	<None Include="$(MSBuildThisFileDirectory)assets\icon.png" Pack="true" PackagePath="\" Link="icon.png" Visible="false" />
-	<PackageReference Include="Microsoft.SourceLink.GitHub" Version="8.0.0" PrivateAssets="All" />
+	<PackageReference Include="Microsoft.SourceLink.GitHub" Version="10.0.403" PrivateAssets="All" />
+	<PackageReference Include="MinVer" Version="8.0.0" PrivateAssets="All" />
   </ItemGroup>
 </Project>

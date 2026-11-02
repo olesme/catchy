@@ -107,6 +107,13 @@ namespace Catchy
     {
         public static class SoftStateExtensions
         {
+            /// <summary>
+            /// Pushes an arbitrary caught exception into <paramref name="softState"/>'s soft-failure list,
+            /// as if it had been captured by a soft assertion. For runner/plugin authors that need to route
+            /// an exception they already caught elsewhere into the same collection Catchy's own asserters use.
+            /// </summary>
+            public static void Capture(this SoftState softState, Exception ex) => softState.Capture(ex);
+
             public static string? BuildMessage(this SoftState softState)
             {
                 return BuildAggregateMessage(softState.Errors);
