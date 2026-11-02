@@ -77,27 +77,30 @@ jobs:
           }
           else {
             $autoBump = $true
-            git fetch --tags --force
-            if ($LASTEXITCODE -ne 0) { throw 'git fetch --tags failed.' }
-
-            $latest = git tag -l 'v[0-9]*.[0-9]*.[0-9]*' |
-              Where-Object { $_ -match '^v\d+\.\d+\.\d+$' } |
-              Sort-Object { [version]($_ -replace '^v', '') } |
-              Select-Object -Last 1
-
-            if ($latest) {
-              $base = [version]($latest -replace '^v', '')
-              $candidate = [version]::new($base.Major, $base.Minor, $base.Build + 1)
-            } else {
-              Write-Host 'No vX.Y.Z tag found; starting from 0.0.1.'
-              $candidate = [version]::new(0, 0, 1)
+            # Base = highest stable version already published on NuGet.org by any of our packages.
+            # Git tags are deliberately NOT used: orphan tags from failed runs would skip versions.
+            $max = [version]'0.0.0'
+            foreach ($pkg in $packages) {
+              $uri = "https://api.nuget.org/v3-flatcontainer/$($pkg.ToLowerInvariant())/index.json"
+              try {
+                $resp = Invoke-RestMethod -Uri $uri -Method Get
+              } catch {
+                $code = $_.Exception.Response.StatusCode.value__
+                if ($code -eq 404) { continue }
+                throw "NuGet lookup failed for $pkg (HTTP $code): $($_.Exception.Message)"
+              }
+              foreach ($s in $resp.versions) {
+                if ($s -match $semver -and ([version]$s) -gt $max) { $max = [version]$s }
+              }
             }
+            Write-Host "Highest version published on NuGet.org: $max"
 
-            $existingTags = @(git tag -l)
+            # Next patch after the highest published one; keep going if (somehow) still occupied.
+            $candidate = [version]::new($max.Major, $max.Minor, $max.Build + 1)
             for ($i = 0; ; $i++) {
               if ($i -gt 1000) { throw 'Could not find a free version after 1000 attempts.' }
               $s = $candidate.ToString()
-              if (($existingTags -notcontains "v$s") -and -not (Test-VersionTaken $s)) { $v = $s; break }
+              if (-not (Test-VersionTaken $s)) { $v = $s; break }
               $candidate = [version]::new($candidate.Major, $candidate.Minor, $candidate.Build + 1)
             }
           }
@@ -191,14 +194,47 @@ jobs:
           NUGET_API_KEY: ${{ steps.nuget-login.outputs.NUGET_API_KEY }}
         run: |
           $ErrorActionPreference = 'Stop'
-          # Push only .nupkg: dotnet nuget push uploads the sibling .snupkg automatically.
           # No --skip-duplicate: any failure (incl. duplicate version) must turn the job red.
-          $pkgs = Get-ChildItem 'artifacts/publish/*.nupkg' | Where-Object { $_.Name -notmatch '\.symbols\.' }
+          Add-Type -AssemblyName System.IO.Compression.FileSystem
+          $src = 'https://api.nuget.org/v3/index.json'
+
+          function Get-EntryBaseNames([string]$zipPath, [string[]]$extensions) {
+            $zip = [System.IO.Compression.ZipFile]::OpenRead($zipPath)
+            try {
+              $zip.Entries |
+                Where-Object { $extensions -contains [System.IO.Path]::GetExtension($_.Name).ToLowerInvariant() } |
+                ForEach-Object { [System.IO.Path]::GetFileNameWithoutExtension($_.Name).ToLowerInvariant() }
+            } finally { $zip.Dispose() }
+          }
+
+          $pkgs = @(Get-ChildItem 'artifacts/publish/*.nupkg')
           if (-not $pkgs) { throw 'No .nupkg files found in artifacts/publish.' }
+
+          # 1) Main packages first, without implicit symbol upload.
           foreach ($pkg in $pkgs) {
             Write-Host "Pushing $($pkg.Name)"
-            dotnet nuget push $pkg.FullName --api-key $env:NUGET_API_KEY --source https://api.nuget.org/v3/index.json
+            dotnet nuget push $pkg.FullName --api-key $env:NUGET_API_KEY --source $src --no-symbols
             if ($LASTEXITCODE -ne 0) { throw "NuGet push failed for $($pkg.Name)." }
+          }
+
+          # 2) Symbols. NuGet.org rejects a .snupkg containing a pdb whose dll is not in the .nupkg
+          #    (e.g. analyzers / source generators where the dll lives under analyzers/, not lib/).
+          #    Such snupkg are skipped with an explicit warning; everything else must succeed.
+          foreach ($pkg in $pkgs) {
+            $snupkg = [System.IO.Path]::ChangeExtension($pkg.FullName, '.snupkg')
+            if (-not (Test-Path $snupkg)) { Write-Host "No symbols package for $($pkg.Name); skipping."; continue }
+
+            $dlls = @(Get-EntryBaseNames $pkg.FullName @('.dll', '.exe'))
+            $pdbs = @(Get-EntryBaseNames $snupkg @('.pdb'))
+            $orphans = @($pdbs | Where-Object { $dlls -notcontains $_ })
+            if ($orphans.Count -gt 0) {
+              Write-Host "::warning::Skipping symbols for $($pkg.Name): pdb without dll in nupkg: $($orphans -join ', ')"
+              continue
+            }
+
+            Write-Host "Pushing symbols $([System.IO.Path]::GetFileName($snupkg))"
+            dotnet nuget push $snupkg --api-key $env:NUGET_API_KEY --source $src
+            if ($LASTEXITCODE -ne 0) { throw "Symbols push failed for $([System.IO.Path]::GetFileName($snupkg))." }
           }
 
       # Tag only after everything was published, so a failed run never leaves an orphan tag.
@@ -210,6 +246,9 @@ jobs:
           $tag = 'v${{ steps.version.outputs.version }}'
           git config user.name  "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git tag $tag
-          git push origin $tag
+          # The version was free on NuGet before this run, so an existing tag with this name is an
+          # orphan from an earlier failed run; move it to the commit that was actually published.
+          if (git tag -l $tag) { Write-Host "::warning::Tag $tag already existed (orphan); moving it to HEAD." }
+          git tag -f $tag
+          git push --force origin $tag
           if ($LASTEXITCODE -ne 0) { throw "Failed to push tag $tag." }
