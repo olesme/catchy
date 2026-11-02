@@ -6,7 +6,7 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: 'Optional NuGet version override (e.g. 1.2.3). Leave empty to auto-bump from the latest vX.Y.Z tag.'
+        description: 'Optional NuGet version override (e.g. 1.2.3). Leave empty to auto-bump to the next free patch after the latest vX.Y.Z tag.'
         required: false
         type: string
 
@@ -15,7 +15,7 @@ jobs:
     runs-on: windows-latest
     permissions:
       id-token: write  # required for Trusted Publishing OIDC
-      contents: write  # required to create/update the auto-bump tag when workflow_dispatch is used
+      contents: write  # required to push the auto-bump tag after a successful publish
 
     steps:
       - name: Checkout
@@ -28,128 +28,131 @@ jobs:
         with:
           global-json-file: global.json
 
-      - name: Restore .NET tools
-        run: dotnet tool restore
-
       - name: Resolve version
         id: version
         shell: pwsh
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          RELEASE_TAG: ${{ github.event.release.tag_name }}
+          INPUT_VERSION: ${{ inputs.version }}
         run: |
-          if ('${{ github.event_name }}' -eq 'release') {
-            # Release event: use the exact release tag, without forcing a manual fallback.
-            $v = '${{ github.event.release.tag_name }}'.Trim()
-            if ([string]::IsNullOrWhiteSpace($v)) {
-              throw 'Release tag is empty.'
-            }
-            $v = $v.TrimStart('v', 'V')
-            if ($v -notmatch '^[0-9]+\.[0-9]+\.[0-9]+$') {
-              throw "Release tag must be SemVer like v1.2.3. Received: $v"
-            }
-          } elseif (-not [string]::IsNullOrWhiteSpace('${{ inputs.version }}')) {
-            # workflow_dispatch: explicit manual override
-            $v = '${{ inputs.version }}'.Trim()
-            $v = $v.TrimStart('v', 'V')
-            if ($v -notmatch '^[0-9]+\.[0-9]+\.[0-9]+$') {
-              throw "Manual version must be a SemVer without a leading 'v' (for example: 1.2.3)"
-            }
-          } else {
-            # workflow_dispatch: auto-bump to the next free NuGet-compatible version.
-            # If the latest tag is already occupied on NuGet, keep incrementing until we find an unused version.
-            git fetch --tags
-            $latestTag = git tag -l "v[0-9]*.[0-9]*.[0-9]*" |
-              Sort-Object { [System.Version]($_ -replace '^v','') } |
-              Select-Object -Last 1
-            if (-not $latestTag) {
-              $latestTag = 'v0.0.0'
-              Write-Host 'No semver tag found; starting from v0.0.0.'
-            }
+          $ErrorActionPreference = 'Stop'
 
-            $baseVersion = [version]($latestTag -replace '^v','')
-            $candidate = [version]::new($baseVersion.Major, $baseVersion.Minor, $baseVersion.Build)
-            $packages = @(
-              'Catchy',
-              'Catchy.Analyzers',
-              'Catchy.Cecil',
-              'Catchy.MSTest',
-              'Catchy.NUnit',
-              'Catchy.Playwright',
-              'Catchy.Playwright.Visual',
-              'Catchy.ReqnrollPlugin',
-              'Catchy.SourceGenerator',
-              'Catchy.TUnit',
-              'Catchy.XUnit'
-            )
+          $packages = @(
+            'Catchy', 'Catchy.Analyzers', 'Catchy.Cecil', 'Catchy.MSTest',
+            'Catchy.NUnit', 'Catchy.Playwright', 'Catchy.Playwright.Visual',
+            'Catchy.ReqnrollPlugin', 'Catchy.SourceGenerator', 'Catchy.TUnit', 'Catchy.XUnit'
+          )
 
-            $attempts = 0
-            do {
-              $candidateStr = $candidate.ToString()
-              $taken = $false
-              foreach ($pkg in $packages) {
-                $uri = "https://api.nuget.org/v3-flatcontainer/$($pkg.ToLowerInvariant())/index.json"
-                try {
-                  $existing = Invoke-RestMethod -Uri $uri -Method Get -ErrorAction Stop
-                  if ($existing.versions -contains $candidateStr) {
-                    $taken = $true
-                    break
-                  }
-                } catch {
-                  # Package not published yet; treat this as free.
-                }
+          # Returns $true if ANY package already has this version on NuGet.org.
+          # 404 = package never published = free. Any other error fails the job (no silent swallowing).
+          function Test-VersionTaken([string]$ver) {
+            foreach ($pkg in $packages) {
+              $uri = "https://api.nuget.org/v3-flatcontainer/$($pkg.ToLowerInvariant())/index.json"
+              try {
+                $resp = Invoke-RestMethod -Uri $uri -Method Get
+              } catch {
+                $code = $_.Exception.Response.StatusCode.value__
+                if ($code -eq 404) { continue }
+                throw "NuGet lookup failed for $pkg (HTTP $code): $($_.Exception.Message)"
               }
-
-              if (-not $taken) {
-                $v = $candidateStr
-                break
+              if ($resp.versions -contains $ver) {
+                Write-Host "Version $ver is already published for $pkg."
+                return $true
               }
-
-              $candidate = [version]::new($candidate.Major, $candidate.Minor, $candidate.Build + 1)
-              $attempts += 1
-              if ($attempts -gt 1000) {
-                throw "Could not find a free publish version after 1000 attempts."
-              }
-            } while ($true)
-
-            git config user.name  "github-actions[bot]"
-            git config user.email "github-actions[bot]@users.noreply.github.com"
-            git tag "v$v"
-            git push origin "v$v"
+            }
+            return $false
           }
-          Write-Output "version=$v" >> $env:GITHUB_OUTPUT
-          Write-Host "Publishing version: $v"
+
+          $semver = '^[0-9]+\.[0-9]+\.[0-9]+$'
+          $autoBump = $false
+
+          if ($env:EVENT_NAME -eq 'release') {
+            $v = $env:RELEASE_TAG.Trim().TrimStart('v', 'V')
+            if ($v -notmatch $semver) { throw "Release tag must look like v1.2.3. Received: '$($env:RELEASE_TAG)'" }
+          }
+          elseif (-not [string]::IsNullOrWhiteSpace($env:INPUT_VERSION)) {
+            $v = $env:INPUT_VERSION.Trim().TrimStart('v', 'V')
+            if ($v -notmatch $semver) { throw "Manual version must look like 1.2.3. Received: '$($env:INPUT_VERSION)'" }
+          }
+          else {
+            $autoBump = $true
+            git fetch --tags --force
+            if ($LASTEXITCODE -ne 0) { throw 'git fetch --tags failed.' }
+
+            $latest = git tag -l 'v[0-9]*.[0-9]*.[0-9]*' |
+              Where-Object { $_ -match '^v\d+\.\d+\.\d+$' } |
+              Sort-Object { [version]($_ -replace '^v', '') } |
+              Select-Object -Last 1
+
+            if ($latest) {
+              $base = [version]($latest -replace '^v', '')
+              $candidate = [version]::new($base.Major, $base.Minor, $base.Build + 1)
+            } else {
+              Write-Host 'No vX.Y.Z tag found; starting from 0.0.1.'
+              $candidate = [version]::new(0, 0, 1)
+            }
+
+            $existingTags = @(git tag -l)
+            for ($i = 0; ; $i++) {
+              if ($i -gt 1000) { throw 'Could not find a free version after 1000 attempts.' }
+              $s = $candidate.ToString()
+              if (($existingTags -notcontains "v$s") -and -not (Test-VersionTaken $s)) { $v = $s; break }
+              $candidate = [version]::new($candidate.Major, $candidate.Minor, $candidate.Build + 1)
+            }
+          }
+
+          # Explicit versions (release / manual) are authoritative: fail loudly if occupied, never bump silently.
+          if (-not $autoBump -and (Test-VersionTaken $v)) {
+            throw "Version $v already exists on NuGet.org. Choose a new version."
+          }
+
+          "version=$v" >> $env:GITHUB_OUTPUT
+          "auto_bump=$($autoBump.ToString().ToLowerInvariant())" >> $env:GITHUB_OUTPUT
+          Write-Host "Publishing version: $v (auto-bump: $autoBump)"
 
       - name: Pack local feed (NuGetPackageSmoke dependencies)
         shell: pwsh
         run: |
+          $ErrorActionPreference = 'Stop'
           $ver = '${{ steps.version.outputs.version }}'
-          $vArgs = '-p:MinVerSkip=true', "-p:Version=$ver", "-p:PackageVersion=$ver"
+          $vArgs = '-p:MinVerSkip=true', "-p:Version=$ver", "-p:PackageVersion=$ver", "-p:CatchyPackageVersion=$ver"
           New-Item -ItemType Directory -Path artifacts/local-feed -Force | Out-Null
-          @(
+          foreach ($proj in @(
             'src/Catchy.SourceGenerator/Catchy.SourceGenerator.csproj',
             'src/Catchy/Catchy.csproj',
             'src/Catchy.Cecil/Catchy.Cecil.csproj',
             'src/Catchy.Playwright/Catchy.Playwright.csproj',
             'src/Catchy.Playwright.Visual/Catchy.Playwright.Visual.csproj'
-          ) | ForEach-Object { dotnet pack $_ -o artifacts/local-feed @vArgs }
+          )) {
+            dotnet pack $proj -o artifacts/local-feed @vArgs
+            if ($LASTEXITCODE -ne 0) { throw "dotnet pack failed for $proj" }
+          }
 
       - name: Restore
         run: dotnet restore CatchyAssertions.slnx -p:RestoreAdditionalProjectSources="${{ github.workspace }}/artifacts/local-feed" -p:CatchyPackageVersion=${{ steps.version.outputs.version }}
 
       - name: Build
-        run: dotnet build CatchyAssertions.slnx -c Release --no-restore -m:1 -p:MinVerSkip=true -p:Version=${{ steps.version.outputs.version }} -p:PackageVersion=${{ steps.version.outputs.version }}
+        run: dotnet build CatchyAssertions.slnx -c Release --no-restore -m:1 -p:MinVerSkip=true -p:Version=${{ steps.version.outputs.version }} -p:PackageVersion=${{ steps.version.outputs.version }} -p:CatchyPackageVersion=${{ steps.version.outputs.version }}
 
       - name: Test (gate)
+        shell: pwsh
         run: |
-          dotnet test tests/CatchyCoreTests/CatchyCoreTests.csproj       -c Release --no-build
+          $ErrorActionPreference = 'Stop'
+          dotnet test tests/CatchyCoreTests/CatchyCoreTests.csproj -c Release --no-build
+          if ($LASTEXITCODE -ne 0) { throw 'CatchyCoreTests failed.' }
           dotnet test tests/CatchySourceGenTests/CatchySourceGenTests.csproj -c Release --no-build
+          if ($LASTEXITCODE -ne 0) { throw 'CatchySourceGenTests failed.' }
 
       - name: Pack
         shell: pwsh
         run: |
+          $ErrorActionPreference = 'Stop'
           $ver = '${{ steps.version.outputs.version }}'
           $out = 'artifacts/publish'
-          $vArgs = '-p:MinVerSkip=true', "-p:Version=$ver", "-p:PackageVersion=$ver"
+          $vArgs = '-p:MinVerSkip=true', "-p:Version=$ver", "-p:PackageVersion=$ver", "-p:CatchyPackageVersion=$ver"
           New-Item -ItemType Directory -Path $out -Force | Out-Null
-          @(
+          foreach ($proj in @(
             'src/Catchy/Catchy.csproj',
             'src/Catchy.SourceGenerator/Catchy.SourceGenerator.csproj',
             'src/Catchy.Analyzers/Catchy.Analyzers.csproj',
@@ -161,15 +164,20 @@ jobs:
             'src/Catchy.MSTest/Catchy.MSTest.csproj',
             'src/Catchy.TUnit/Catchy.TUnit.csproj',
             'src/Catchy.Reqnroll/Catchy.ReqnrollPlugin.csproj'
-          ) | ForEach-Object { dotnet pack $_ -c Release --no-build -o $out @vArgs }
+          )) {
+            dotnet pack $proj -c Release --no-build -o $out @vArgs
+            if ($LASTEXITCODE -ne 0) { throw "dotnet pack failed for $proj" }
+          }
 
       - name: NuGet smoke (local feed validation)
         shell: pwsh
         run: |
+          $ErrorActionPreference = 'Stop'
           dotnet build tests/NuGetPackageSmoke/NuGetPackageSmoke.csproj -c Release -m:1 `
             -p:RestoreAdditionalProjectSources="${{ github.workspace }}/artifacts/publish" `
             -p:RestoreNoCache=true `
             -p:CatchyPackageVersion=${{ steps.version.outputs.version }}
+          if ($LASTEXITCODE -ne 0) { throw 'NuGet smoke build failed.' }
 
       - name: NuGet login (Trusted Publishing — OIDC → temp API key)
         uses: NuGet/login@v1
@@ -179,67 +187,29 @@ jobs:
 
       - name: Push to NuGet.org
         shell: pwsh
+        env:
+          NUGET_API_KEY: ${{ steps.nuget-login.outputs.NUGET_API_KEY }}
         run: |
           $ErrorActionPreference = 'Stop'
+          # Push only .nupkg: dotnet nuget push uploads the sibling .snupkg automatically.
+          # No --skip-duplicate: any failure (incl. duplicate version) must turn the job red.
           $pkgs = Get-ChildItem 'artifacts/publish/*.nupkg' | Where-Object { $_.Name -notmatch '\.symbols\.' }
-          $syms = Get-ChildItem 'artifacts/publish/*.snupkg'
-          foreach ($pkg in ($pkgs + $syms)) {
-            $cmd = "dotnet nuget push \"$($pkg.FullName)\" --api-key ${{ steps.nuget-login.outputs.NUGET_API_KEY }} --source https://api.nuget.org/v3/index.json"
-            Write-Host $cmd
-            & dotnet nuget push $pkg.FullName --api-key ${{ steps.nuget-login.outputs.NUGET_API_KEY }} --source https://api.nuget.org/v3/index.json
-            if ($LASTEXITCODE -ne 0) {
-              throw "NuGet push failed for $($pkg.FullName)."
-            }
+          if (-not $pkgs) { throw 'No .nupkg files found in artifacts/publish.' }
+          foreach ($pkg in $pkgs) {
+            Write-Host "Pushing $($pkg.Name)"
+            dotnet nuget push $pkg.FullName --api-key $env:NUGET_API_KEY --source https://api.nuget.org/v3/index.json
+            if ($LASTEXITCODE -ne 0) { throw "NuGet push failed for $($pkg.Name)." }
           }
 
-      # Explicit version input is authoritative; no fallback bump when a version is provided.
-      # If a package version already exists on NuGet, the push must fail red rather than silently ignoring it.
-      - name: Verify version selection
+      # Tag only after everything was published, so a failed run never leaves an orphan tag.
+      - name: Tag auto-bumped version
+        if: steps.version.outputs.auto_bump == 'true'
         shell: pwsh
         run: |
-          $explicit = '${{ inputs.version }}'
-          if (-not [string]::IsNullOrWhiteSpace($explicit)) {
-            Write-Host "Manual version is set: $explicit"
-            return
-          }
-          Write-Host "No explicit manual version was supplied; auto-bump behavior is allowed."
-
-      - name: Guard against occupied auto-bump version
-        shell: pwsh
-        run: |
-          $v = '${{ steps.version.outputs.version }}'
-          if ([string]::IsNullOrWhiteSpace($v)) {
-            throw 'Resolved publish version is empty.'
-          }
-          Write-Host "Resolved version for publish: $v"
-          # If the generated version was already published, this step should fail before packaging/pushing.
-          # The workflow intentionally rejects duplicate versions instead of silently treating them as success.
-          # We do not allow auto-generated versions to remain stale or repeat when NuGet already has the package.
-          $published = Invoke-RestMethod -Uri "https://api.nuget.org/v3-flatcontainer/catchy/index.json" -Method Get -ErrorAction SilentlyContinue
-          if ($published -and $published.versions -contains $v) {
-            throw "Resolved version $v already exists on NuGet.org; choose a new version or provide an explicit version input."
-          }
-
-          $packages = @(
-            'Catchy',
-            'Catchy.Analyzers',
-            'Catchy.Cecil',
-            'Catchy.MSTest',
-            'Catchy.NUnit',
-            'Catchy.Playwright',
-            'Catchy.Playwright.Visual',
-            'Catchy.ReqnrollPlugin',
-            'Catchy.SourceGenerator',
-            'Catchy.TUnit',
-            'Catchy.XUnit'
-          )
-
-          foreach ($pkg in $packages) {
-            $uri = "https://api.nuget.org/v3-flatcontainer/$($pkg.ToLowerInvariant())/index.json"
-            $resp = Invoke-RestMethod -Uri $uri -Method Get -ErrorAction SilentlyContinue
-            if ($resp -and $resp.versions -contains $v) {
-              throw "NuGet version $v is already published for package $pkg; choose a new version before publishing."
-            }
-          }
-
-
+          $ErrorActionPreference = 'Stop'
+          $tag = 'v${{ steps.version.outputs.version }}'
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git tag $tag
+          git push origin $tag
+          if ($LASTEXITCODE -ne 0) { throw "Failed to push tag $tag." }
