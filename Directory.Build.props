@@ -1,11 +1,6 @@
 <Project>
-  <!-- MinVer derives the version from the nearest git tag (prefix "v", e.g. v0.2.0).
-       CatchyPackageVersion is used only by tests/NuGetPackageSmoke to reference the same version;
-       CI passes it via -p:CatchyPackageVersion=$(dotnet minver). For a manual local smoke run:
-       dotnet build tests/NuGetPackageSmoke/... -p:CatchyPackageVersion=$(dotnet minver) -->
   <PropertyGroup>
 	<CatchyPackageVersion Condition="'$(CatchyPackageVersion)' == ''">0.0.0</CatchyPackageVersion>
-	<MinVerTagPrefix>v</MinVerTagPrefix>
   </PropertyGroup>
 
   <PropertyGroup Condition="($([System.String]::Copy('$(MSBuildProjectDirectory)').Contains('\src\')) or $([System.String]::Copy('$(MSBuildProjectDirectory)').Contains('/src/'))) and '$(IsPackable)' != 'false'">
@@ -17,6 +12,7 @@
 	<RepositoryUrl>https://github.com/olesme/catchy</RepositoryUrl>
 	<PackageProjectUrl>https://github.com/olesme/catchy</PackageProjectUrl>
 	<RepositoryType>git</RepositoryType>
+	<PackageReadmeFile>README.md</PackageReadmeFile>
 	<PublishRepositoryUrl>true</PublishRepositoryUrl>
 	<IncludeSymbols>true</IncludeSymbols>
 	<SymbolPackageFormat>snupkg</SymbolPackageFormat>
@@ -32,7 +28,5 @@
   <ItemGroup Condition="($([System.String]::Copy('$(MSBuildProjectDirectory)').Contains('\src\')) or $([System.String]::Copy('$(MSBuildProjectDirectory)').Contains('/src/'))) and '$(IsPackable)' != 'false'">
 	<None Include="$(MSBuildThisFileDirectory)LICENSE" Pack="true" PackagePath="\" Link="LICENSE" Visible="false" />
 	<None Include="$(MSBuildThisFileDirectory)assets\icon.png" Pack="true" PackagePath="\" Link="icon.png" Visible="false" />
-	<PackageReference Include="Microsoft.SourceLink.GitHub" Version="10.0.403" PrivateAssets="All" />
-	<PackageReference Include="MinVer" Version="8.0.0" PrivateAssets="All" />
   </ItemGroup>
 </Project>

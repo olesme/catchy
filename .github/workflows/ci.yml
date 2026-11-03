@@ -47,13 +47,8 @@ jobs:
           dotnet pack src/Catchy.Playwright/Catchy.Playwright.csproj            -c Release -o artifacts/smoke-pack -m:1
           dotnet pack src/Catchy.Playwright.Visual/Catchy.Playwright.Visual.csproj -c Release -o artifacts/smoke-pack -m:1
 
-      - name: Get MinVer version (for smoke coordination)
-        id: minver
-        shell: pwsh
-        run: Write-Output "version=$(dotnet minver)" >> $env:GITHUB_OUTPUT
-
       - name: Restore solution
-        run: dotnet restore CatchyAssertions.slnx -p:RestoreAdditionalProjectSources="${{ github.workspace }}/artifacts/smoke-pack" -p:CatchyPackageVersion=${{ steps.minver.outputs.version }}
+        run: dotnet restore CatchyAssertions.slnx -p:RestoreAdditionalProjectSources="${{ github.workspace }}/artifacts/smoke-pack" -p:CatchyPackageVersion=0.0.0
 
       - name: Build solution
         run: dotnet build CatchyAssertions.slnx -c Release --no-restore -m:1
